@@ -16,6 +16,10 @@ struct ContentView: View {
     @State private var errorMessage = ""
     @State private var showingError = false
     
+    @State private var rootWordMinLength = 4
+    
+    @State private var score = 0
+    
     var body: some View {
         NavigationStack {
             List {
@@ -23,6 +27,10 @@ struct ContentView: View {
                     TextField("Enter your word:", text: $newWord)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled(true)
+                }
+                
+                Section {
+                    Text("Your current score is \(score)")
                 }
                 
                 Section {
@@ -44,12 +52,25 @@ struct ContentView: View {
             } message: {
                 Text(errorMessage)
             }
+            .toolbar() {
+                Button("Restart", action: restartGame)
+            }
         }
     }
     
     func addNewWord() {
         let answer = newWord.uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard answer.count > 0 else { return }
+        
+        guard isNotTooShort(word: answer, minLength: rootWordMinLength) else {
+            wordError(title: "Word is too short", message: "Minimum length of word is \(rootWordMinLength)")
+            return
+        }
+        
+        guard isNotTheStartingWord(word: answer) else {
+            wordError(title: "Word is identical to the starting word", message: "Really dude?")
+            return
+        }
         
         guard isOriginal(word: answer) else {
             wordError(title: "Used already", message: "Be more original!")
@@ -70,13 +91,14 @@ struct ContentView: View {
             usedWords.insert(answer, at: 0)
         }
         newWord = ""
+        score += answer.count
     }
     
     func startGame() {
         if let startWordsURL = Bundle.main.url(forResource: "start", withExtension: ".txt") {
             if let startWords = try? String(contentsOf: startWordsURL) {
                 let allWords = startWords.components(separatedBy: .newlines)
-                rootWord = allWords.randomElement() ?? "silkworm"
+                rootWord = allWords.randomElement()?.uppercased() ?? "SILKWORM"
                 return
             }
         }
@@ -84,12 +106,18 @@ struct ContentView: View {
         fatalError("Could not load required file from bundle")
     }
     
+    func restartGame () {
+        startGame()
+        usedWords.removeAll()
+        score = 0
+    }
+    
     func isOriginal(word: String) -> Bool {
         !usedWords.contains(word)
     }
     
     func isPossible(word: String) -> Bool {
-        var tempWord = rootWord.uppercased()
+        var tempWord = rootWord
         
         for letter in word {
             if let pos = tempWord.firstIndex(of: letter) {
@@ -107,6 +135,14 @@ struct ContentView: View {
         let misspelledRange = checker.rangeOfMisspelledWord(in: word, range: range, startingAt: 0, wrap: false, language: "en")
         
         return misspelledRange.location == NSNotFound
+    }
+    
+    func isNotTooShort(word: String, minLength: Int = 4) -> Bool {
+        word.count >= minLength
+    }
+    
+    func isNotTheStartingWord(word: String) -> Bool {
+        word != rootWord
     }
     
     func wordError(title: String, message: String) {
